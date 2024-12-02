@@ -9,29 +9,29 @@ const pusher = new Pusher({
 });
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true)
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin)
-  res.setHeader('Access-Control-Allow-Methods', 'POST')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  
+  // Handle Slack events
+  if (req.body.type === 'event_callback' && req.body.event.type === 'message') {
+    await pusher.trigger('pushrefresh-chat', 'message', {
+      text: req.body.event.text,
+      isUser: false
+    });
+    return res.status(200).json({ ok: true });
   }
 
-  if (req.method !== 'POST') return res.status(405).end();
-  
+  // Handle chat messages
   const client = new WebClient(process.env.SLACK_BOT_TOKEN);
-  
   try {
     await client.chat.postMessage({
       channel: process.env.SLACK_CHANNEL_ID,
       text: req.body.message
     });
-
-    await pusher.trigger('pushrefresh-chat', 'message', {
-      text: req.body.message
-    });
-
     res.status(200).json({ success: true });
   } catch (error) {
     console.error('Error:', error);
