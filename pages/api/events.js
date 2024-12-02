@@ -10,6 +10,7 @@ const pusher = new Pusher({
 // Basic emoji mapping - add more as needed
 const emojiMap = {
     'smile': '😊',
+    'rolling_on_the_floor_laughing': '🤣',
     'laughing': '😄',
     'wink': '😉',
     'heart': '❤️',
