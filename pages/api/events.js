@@ -14,9 +14,9 @@ export default async function handler(req, res) {
 
   const event = req.body.event;
   if (event?.type === 'message' && !event.bot_id) {
-    await pusher.trigger('chat', 'message', {
+    await pusher.trigger('pushrefresh-chat', 'message', {
       text: event.text,
-      user: event.user
+      isUser: false
     });
   }
 
