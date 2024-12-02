@@ -29,12 +29,6 @@ export default async function handler(req, res) {
       thread_ts: req.body.thread_ts || undefined
     });
 
-    await pusher.trigger('pushrefresh-chat', 'message', {
-      text: req.body.message,
-      isUser: true,
-      thread_ts: result.ts
-    });
-
     res.status(200).json({ 
       success: true,
       thread_ts: result.ts 
