@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     console.log('Triggering Pusher:', event);
     await pusher.trigger('pushrefresh-chat', 'message', {
       text: event.text,
+      user: 'Rossi',
       isUser: false
     });
     console.log('Pusher triggered');
