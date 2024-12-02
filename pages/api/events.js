@@ -7,6 +7,33 @@ const pusher = new Pusher({
   cluster: process.env.PUSHER_CLUSTER,
 });
 
+// Basic emoji mapping - add more as needed
+const emojiMap = {
+    'smile': '😊',
+    'laughing': '😄',
+    'wink': '😉',
+    'heart': '❤️',
+    'thumbsup': '👍',
+    'wave': '👋',
+    'rocket': '🚀',
+    'fire': '🔥',
+    'tada': '🎉',
+    'raised_hands': '🙌',
+    'pray': '🙏',
+    '+1': '👍',
+    '-1': '👎',
+    'ok_hand': '👌',
+    'muscle': '💪',
+    'clap': '👏',
+    'star': '⭐',
+    'sparkles': '✨',
+    'sunny': '☀️',
+    'thinking_face': '🤔',
+    'check': '✅',
+    'warning': '⚠️',
+    'x': '❌',
+};
+
 export default async function handler(req, res) {
   if (req.body.type === 'url_verification') {
     return res.json({ challenge: req.body.challenge });
@@ -14,8 +41,13 @@ export default async function handler(req, res) {
 
   const event = req.body.event;
   if (event?.type === 'message' && !event.bot_id && event.channel === 'C083Z0PQQ8G') {
+    // Convert Slack emoji format to Unicode
+    const text = event.text.replace(/:([\w-]+):/g, (match, emoji) => {
+        return emojiMap[emoji] || match;
+    });
+
     await pusher.trigger('pushrefresh-chat', 'message', {
-      text: event.text,
+      text: text,
       user: 'Rossi - Push Refresh',
       isUser: false,
       thread_ts: event.thread_ts || event.ts
