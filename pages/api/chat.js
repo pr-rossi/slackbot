@@ -53,17 +53,42 @@ export default async function handler(req, res) {
       
       try {
         if (req.body.type === 'reaction') {
-          await client.reactions.add({
-            channel: process.env.SLACK_CHANNEL_ID,
-            timestamp: req.body.thread_ts,
-            name: normalizedEmojiForApi
-          });
+          try {
+            await client.reactions.add({
+              channel: process.env.SLACK_CHANNEL_ID,
+              timestamp: req.body.thread_ts,
+              name: normalizedEmojiForApi
+            });
+          } catch (error) {
+            if (error.data?.error === 'already_reacted') {
+              await client.reactions.remove({
+                channel: process.env.SLACK_CHANNEL_ID,
+                timestamp: req.body.thread_ts,
+                name: normalizedEmojiForApi
+              });
+              return res.status(200).json({ 
+                success: true,
+                action: 'removed'
+              });
+            }
+            throw error;
+          }
         } else {
-          await client.reactions.remove({
-            channel: process.env.SLACK_CHANNEL_ID,
-            timestamp: req.body.thread_ts,
-            name: normalizedEmojiForApi
-          });
+          try {
+            await client.reactions.remove({
+              channel: process.env.SLACK_CHANNEL_ID,
+              timestamp: req.body.thread_ts,
+              name: normalizedEmojiForApi
+            });
+          } catch (error) {
+            if (error.data?.error === 'no_reaction') {
+              return res.status(200).json({
+                success: true,
+                action: 'already_removed'
+              });
+            }
+            throw error;
+          }
         }
 
         return res.status(200).json({ 
@@ -71,18 +96,15 @@ export default async function handler(req, res) {
           action: req.body.type === 'reaction' ? 'added' : 'removed'
         });
       } catch (error) {
-        if (error.data?.error === 'already_reacted') {
-          await client.reactions.remove({
-            channel: process.env.SLACK_CHANNEL_ID,
-            timestamp: req.body.thread_ts,
-            name: normalizedEmojiForApi
-          });
-          return res.status(200).json({ 
-            success: true,
-            action: 'removed'
-          });
-        }
-        throw error;
+        console.error('Slack API Error Details:', {
+          error: error.data?.error,
+          emojiName: normalizedEmojiForApi,
+          originalEmoji: emojiName
+        });
+        return res.status(200).json({ 
+          success: false,
+          error: error.data?.error 
+        });
       }
     }
 
