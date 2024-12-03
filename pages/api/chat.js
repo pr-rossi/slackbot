@@ -8,6 +8,38 @@ const pusher = new Pusher({
   cluster: process.env.PUSHER_CLUSTER,
 });
 
+let emojiCache = null;
+const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+let lastEmojiFetch = 0;
+
+async function getSlackEmojis() {
+  if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
+    return emojiCache;
+  }
+
+  try {
+    const response = await fetch('https://slack.com/api/emoji.list', {
+      headers: {
+        'Authorization': `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    if (!data.ok) {
+      console.error('Failed to fetch Slack emojis:', data.error);
+      return emojiCache || {};
+    }
+
+    emojiCache = data.emoji;
+    lastEmojiFetch = Date.now();
+    return emojiCache;
+  } catch (error) {
+    console.error('Error fetching Slack emojis:', error);
+    return emojiCache || {};
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true)
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin)
@@ -27,13 +59,10 @@ export default async function handler(req, res) {
     if (req.body.type === 'reaction' || req.body.type === 'remove_reaction') {
       console.log('Handling reaction:', req.body);
 
-      // Convert emoji to Slack format
-      let emojiName = 'thumbsup'; // Default to thumbsup
-      if (req.body.emoji === '👍') {
-        emojiName = 'thumbsup';
-      } else if (req.body.emoji === '❤️') {
-        emojiName = 'heart';
-      } // Add more emoji mappings as needed
+      // Get emoji name from Slack
+      const emojis = await getSlackEmojis();
+      // Find the Slack emoji name by matching the Unicode emoji
+      const emojiName = Object.entries(emojis).find(([_, value]) => value === req.body.emoji)?.[0] || 'thumbsup';
 
       try {
         let result;
