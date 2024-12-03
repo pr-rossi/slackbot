@@ -43,8 +43,7 @@ export default async function handler(req, res) {
   const event = req.body.event;
   
   // Handle regular messages
-  if (event?.type === 'message' && !event.bot_id && event.channel === 'C083Z0PQQ8G') {
-    // Convert Slack emoji format to Unicode
+  if (event?.type === 'message' && !event.bot_id && event.channel === process.env.SLACK_CHANNEL_ID) {
     const text = event.text.replace(/:([\w-]+):/g, (match, emoji) => {
         return emojiMap[emoji] || match;
     });
@@ -53,30 +52,33 @@ export default async function handler(req, res) {
       text: text,
       user: 'Rossi - Push Refresh',
       isUser: false,
-      thread_ts: event.thread_ts || event.ts
+      thread_ts: event.thread_ts || event.ts,
+      ts: event.ts
     });
   }
   
-// Handle reactions
-if (event?.type === 'reaction_added' && event.channel === 'C083Z0PQQ8G') {
-    const reaction = emojiMap[event.reaction] || `:${event.reaction}:`;
+  // Handle reactions being added
+  if (event?.type === 'reaction_added' && event.item.channel === process.env.SLACK_CHANNEL_ID) {
+    console.log('Reaction added in Slack:', event);
+    const reaction = emojiMap[event.reaction] || '👍'; // Default to thumbsup if unknown
     await pusher.trigger('pushrefresh-chat', 'reaction', {
-        emoji: reaction,  // Changed from 'reaction' to 'emoji' to match client expectations
-        count: 1,        // Add initial count
+        emoji: reaction,
+        count: 1,
         thread_ts: event.item.ts,
-        messageIndex: event.item.ts  // Add messageIndex for identifying the message
+        user: event.user
     });
-}
+  }
 
-// Also add handling for reaction removal
-if (event?.type === 'reaction_removed' && event.channel === 'C083Z0PQQ8G') {
-    const reaction = emojiMap[event.reaction] || `:${event.reaction}:`;
+  // Handle reactions being removed
+  if (event?.type === 'reaction_removed' && event.item.channel === process.env.SLACK_CHANNEL_ID) {
+    console.log('Reaction removed in Slack:', event);
+    const reaction = emojiMap[event.reaction] || '👍'; // Default to thumbsup if unknown
     await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
         emoji: reaction,
         thread_ts: event.item.ts,
-        messageIndex: event.item.ts
+        user: event.user
     });
-}
+  }
 
   res.status(200).json({ ok: true });
 }
