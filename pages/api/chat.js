@@ -25,11 +25,38 @@ export default async function handler(req, res) {
   try {
     // Handle reactions
     if (req.body.type === 'reaction') {
-      await client.reactions.add({
+      const result = await client.reactions.add({
         channel: process.env.SLACK_CHANNEL_ID,
         timestamp: req.body.thread_ts,
-        name: req.body.reaction.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
+        name: req.body.emoji.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
       });
+
+      // Trigger Pusher event for reaction
+      await pusher.trigger('pushrefresh-chat', 'reaction', {
+        emoji: req.body.emoji,
+        count: 1,
+        thread_ts: req.body.thread_ts,
+        messageIndex: req.body.thread_ts
+      });
+
+      return res.status(200).json({ success: true });
+    }
+
+    // Handle reaction removal
+    if (req.body.type === 'remove_reaction') {
+      const result = await client.reactions.remove({
+        channel: process.env.SLACK_CHANNEL_ID,
+        timestamp: req.body.thread_ts,
+        name: req.body.emoji.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
+      });
+
+      // Trigger Pusher event for reaction removal
+      await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
+        emoji: req.body.emoji,
+        thread_ts: req.body.thread_ts,
+        messageIndex: req.body.thread_ts
+      });
+
       return res.status(200).json({ success: true });
     }
 
@@ -42,7 +69,8 @@ export default async function handler(req, res) {
 
     res.status(200).json({ 
       success: true,
-      thread_ts: result.ts 
+      thread_ts: result.ts,
+      ts: result.ts // Add this to ensure we have the message timestamp
     });
   } catch (error) {
     console.error('Slack API Error:', error);
