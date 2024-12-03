@@ -25,17 +25,18 @@ export default async function handler(req, res) {
   try {
     // Handle reactions
     if (req.body.type === 'reaction') {
-      console.log('Handling reaction:', {
-        channel: process.env.SLACK_CHANNEL_ID,
-        timestamp: req.body.thread_ts,
-        name: req.body.emoji
-      });
+      // Log the incoming request
+      console.log('Incoming reaction request:', req.body);
 
-      // Remove any emoji characters and just keep the emoji name
-      const emojiName = req.body.emoji
-        .replace(/[^\w]/g, '')  // Remove non-word characters
-        .replace('', 'thumbsup')  // Convert emoji to Slack name
-        .toLowerCase();  // Ensure lowercase
+      // Convert emoji to Slack format
+      let emojiName = 'thumbsup'; // Default to thumbsup
+      if (req.body.emoji === '👍') {
+        emojiName = 'thumbsup';
+      } else if (req.body.emoji === '❤️') {
+        emojiName = 'heart';
+      } // Add more emoji mappings as needed
+
+      console.log('Using emoji name:', emojiName);
 
       try {
         const result = await client.reactions.add({
@@ -43,7 +44,8 @@ export default async function handler(req, res) {
           timestamp: req.body.thread_ts,
           name: emojiName
         });
-        console.log('Reaction result:', result);
+        
+        console.log('Slack API Response:', result);
 
         // Trigger Pusher event for reaction
         await pusher.trigger('pushrefresh-chat', 'reaction', {
@@ -55,7 +57,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       } catch (slackError) {
         console.error('Slack API Error:', slackError);
-        return res.status(500).json({ error: slackError.message });
+        return res.status(500).json({ 
+          error: slackError.message,
+          details: slackError.data // Include more error details
+        });
       }
     }
 
