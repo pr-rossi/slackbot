@@ -69,43 +69,24 @@ export default async function handler(req, res) {
         return value === req.body.emoji;
       });
       
-      const emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
+      let emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
       console.log('Selected emoji name:', emojiName); // Debug log
+
+      // Ensure emoji name is valid
+      if (!emojis[emojiName]) {
+        console.warn(`Emoji name "${emojiName}" not found, defaulting to "thumbsup"`);
+        emojiName = 'thumbsup';
+      }
 
       try {
         let result;
         if (req.body.type === 'reaction') {
-          try {
-            console.log('Adding reaction with name:', emojiName); // Debug log
-            result = await client.reactions.add({
-              channel: process.env.SLACK_CHANNEL_ID,
-              timestamp: req.body.thread_ts,
-              name: emojiName
-            });
-          } catch (error) {
-            // If already reacted, try to remove the reaction instead
-            if (error.data?.error === 'already_reacted') {
-              result = await client.reactions.remove({
-                channel: process.env.SLACK_CHANNEL_ID,
-                timestamp: req.body.thread_ts,
-                name: emojiName
-              });
-              
-              // Trigger Pusher event for reaction removal
-              await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
-                emoji: req.body.emoji,
-                thread_ts: req.body.thread_ts
-              });
-              
-              return res.status(200).json({ 
-                success: true, 
-                action: 'removed',
-                details: result 
-              });
-            } else {
-              throw error; // Re-throw if it's a different error
-            }
-          }
+          console.log('Adding reaction with name:', emojiName); // Debug log
+          result = await client.reactions.add({
+            channel: process.env.SLACK_CHANNEL_ID,
+            timestamp: req.body.thread_ts,
+            name: emojiName
+          });
         } else {
           // Handle explicit removal request
           result = await client.reactions.remove({
@@ -129,17 +110,13 @@ export default async function handler(req, res) {
           action: req.body.type === 'reaction' ? 'added' : 'removed',
           details: result 
         });
-      } catch (slackError) {
-        console.error('Slack API Error:', {
-          message: slackError.message,
-          data: slackError.data,
-          stack: slackError.stack
-        });
+      } catch (error) {
+        console.error('Slack API Error:', error);
         
         // Return more detailed error information
         return res.status(500).json({ 
-          error: `An API error occurred: ${slackError.data?.error || slackError.message}`,
-          details: slackError.data
+          error: `An API error occurred: ${error.data?.error || error.message}`,
+          details: error.data
         });
       }
     }
