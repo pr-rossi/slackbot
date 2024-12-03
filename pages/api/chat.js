@@ -61,12 +61,22 @@ export default async function handler(req, res) {
 
       // Get emoji name from Slack
       const emojis = await getSlackEmojis();
-      const emojiName = Object.entries(emojis).find(([_, value]) => value === req.body.emoji)?.[0] || 'thumbsup';
+      console.log('Available Slack emojis:', emojis); // Debug log
+
+      // Try to find the emoji name, with better logging
+      const emojiEntry = Object.entries(emojis).find(([name, value]) => {
+        console.log(`Comparing emoji: ${name} = ${value} with ${req.body.emoji}`); // Debug log
+        return value === req.body.emoji;
+      });
+      
+      const emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
+      console.log('Selected emoji name:', emojiName); // Debug log
 
       try {
         let result;
         if (req.body.type === 'reaction') {
           try {
+            console.log('Adding reaction with name:', emojiName); // Debug log
             result = await client.reactions.add({
               channel: process.env.SLACK_CHANNEL_ID,
               timestamp: req.body.thread_ts,
