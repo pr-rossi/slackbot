@@ -36,6 +36,8 @@ const emojiMap = {
 };
 
 export default async function handler(req, res) {
+  console.log('Received Slack event:', req.body);
+
   if (req.body.type === 'url_verification') {
     return res.json({ challenge: req.body.challenge });
   }
@@ -59,25 +61,55 @@ export default async function handler(req, res) {
   
   // Handle reactions being added
   if (event?.type === 'reaction_added' && event.item.channel === process.env.SLACK_CHANNEL_ID) {
-    console.log('Reaction added in Slack:', event);
-    const reaction = emojiMap[event.reaction] || '👍'; // Default to thumbsup if unknown
-    await pusher.trigger('pushrefresh-chat', 'reaction', {
-        emoji: reaction,
+    console.log('Reaction added in Slack:', {
+      reaction: event.reaction,
+      item: event.item,
+      user: event.user,
+      channel: event.item.channel
+    });
+
+    const emoji = emojiMap[event.reaction] || '👍';
+    
+    try {
+      await pusher.trigger('pushrefresh-chat', 'reaction', {
+        emoji: emoji,
         count: 1,
         thread_ts: event.item.ts,
         user: event.user
-    });
+      });
+      console.log('Pushed reaction event:', {
+        emoji: emoji,
+        thread_ts: event.item.ts
+      });
+    } catch (error) {
+      console.error('Error pushing reaction:', error);
+    }
   }
 
   // Handle reactions being removed
   if (event?.type === 'reaction_removed' && event.item.channel === process.env.SLACK_CHANNEL_ID) {
-    console.log('Reaction removed in Slack:', event);
-    const reaction = emojiMap[event.reaction] || '👍'; // Default to thumbsup if unknown
-    await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
-        emoji: reaction,
+    console.log('Reaction removed in Slack:', {
+      reaction: event.reaction,
+      item: event.item,
+      user: event.user,
+      channel: event.item.channel
+    });
+
+    const emoji = emojiMap[event.reaction] || '👍';
+    
+    try {
+      await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
+        emoji: emoji,
         thread_ts: event.item.ts,
         user: event.user
-    });
+      });
+      console.log('Pushed reaction_removed event:', {
+        emoji: emoji,
+        thread_ts: event.item.ts
+      });
+    } catch (error) {
+      console.error('Error pushing reaction removal:', error);
+    }
   }
 
   res.status(200).json({ ok: true });
