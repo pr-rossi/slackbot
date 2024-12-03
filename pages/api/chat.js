@@ -12,14 +12,6 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
-const EMOJI_ALIASES = {
-  '👍': '+1',
-  '+1': '+1',
-  '👎': '-1',
-  '-1': '-1',
-  // Add more aliases as needed
-};
-
 async function getSlackEmojis() {
   if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
     return emojiCache;
@@ -71,7 +63,7 @@ export default async function handler(req, res) {
       const emojis = await getSlackEmojis();
       console.log('Available Slack emojis:', emojis); // Debug log
 
-      // Try to find the emoji name, with better logging
+      // Try to find the emoji name
       const emojiEntry = Object.entries(emojis).find(([name, value]) => {
         console.log(`Comparing emoji: ${name} = ${value} with ${req.body.emoji}`); // Debug log
         return value === req.body.emoji;
@@ -79,16 +71,7 @@ export default async function handler(req, res) {
       
       let emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
       
-      // Normalize emoji aliases
-      emojiName = EMOJI_ALIASES[emojiName] || emojiName;
-      
       console.log('Selected emoji name:', emojiName); // Debug log
-
-      // Ensure emoji name is valid
-      if (!emojis[emojiName]) {
-        console.warn(`Emoji name "${emojiName}" not found, defaulting to "thumbsup"`);
-        emojiName = 'thumbsup';
-      }
 
       try {
         let result;
@@ -121,7 +104,7 @@ export default async function handler(req, res) {
           });
         }
 
-        // If we got here, the reaction was added successfully
+        // If we got here, the reaction was handled successfully
         if (req.body.type === 'reaction') {
           await pusher.trigger('pushrefresh-chat', 'reaction', {
             emoji: req.body.emoji,

@@ -13,15 +13,6 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
-// Add this mapping at the top of your file
-const EMOJI_ALIASES = {
-  '👍': '+1',
-  '+1': '+1',
-  '👎': '-1',
-  '-1': '-1',
-  // Add more aliases as needed
-};
-
 // Add this function to fetch emojis from Slack
 async function getSlackEmojis() {
   if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
@@ -101,10 +92,7 @@ export default async function handler(req, res) {
     console.log('Processing reaction event:', event);
     const emojis = await getSlackEmojis();
     
-    let emojiName = event.reaction;
-    // Normalize emoji aliases
-    emojiName = EMOJI_ALIASES[emojiName] || emojiName;
-    
+    const emojiName = event.reaction;
     const emoji = emojis[emojiName] || `:${emojiName}:`;
     
     try {
