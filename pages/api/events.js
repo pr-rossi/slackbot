@@ -41,6 +41,8 @@ export default async function handler(req, res) {
   }
 
   const event = req.body.event;
+  
+  // Handle regular messages
   if (event?.type === 'message' && !event.bot_id && event.channel === 'C083Z0PQQ8G') {
     // Convert Slack emoji format to Unicode
     const text = event.text.replace(/:([\w-]+):/g, (match, emoji) => {
@@ -52,6 +54,16 @@ export default async function handler(req, res) {
       user: 'Rossi - Push Refresh',
       isUser: false,
       thread_ts: event.thread_ts || event.ts
+    });
+  }
+  
+  // Handle reactions
+  if (event?.type === 'reaction_added' && event.channel === 'C083Z0PQQ8G') {
+    const reaction = emojiMap[event.reaction] || `:${event.reaction}:`;
+    await pusher.trigger('pushrefresh-chat', 'reaction', {
+      reaction: reaction,
+      user: 'Rossi - Push Refresh',
+      thread_ts: event.item.ts
     });
   }
 
