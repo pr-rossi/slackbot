@@ -57,15 +57,26 @@ export default async function handler(req, res) {
     });
   }
   
-  // Handle reactions
-  if (event?.type === 'reaction_added' && event.channel === 'C083Z0PQQ8G') {
+// Handle reactions
+if (event?.type === 'reaction_added' && event.channel === 'C083Z0PQQ8G') {
     const reaction = emojiMap[event.reaction] || `:${event.reaction}:`;
     await pusher.trigger('pushrefresh-chat', 'reaction', {
-      reaction: reaction,
-      user: 'Rossi - Push Refresh',
-      thread_ts: event.item.ts
+        emoji: reaction,  // Changed from 'reaction' to 'emoji' to match client expectations
+        count: 1,        // Add initial count
+        thread_ts: event.item.ts,
+        messageIndex: event.item.ts  // Add messageIndex for identifying the message
     });
-  }
+}
+
+// Also add handling for reaction removal
+if (event?.type === 'reaction_removed' && event.channel === 'C083Z0PQQ8G') {
+    const reaction = emojiMap[event.reaction] || `:${event.reaction}:`;
+    await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
+        emoji: reaction,
+        thread_ts: event.item.ts,
+        messageIndex: event.item.ts
+    });
+}
 
   res.status(200).json({ ok: true });
 }
