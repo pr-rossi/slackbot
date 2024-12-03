@@ -63,15 +63,24 @@ export default async function handler(req, res) {
       const emojis = await getSlackEmojis();
       console.log('Available Slack emojis:', emojis); // Debug log
 
-      // Try to find the emoji name
+      // Clean up the emoji input - handle both Unicode and :emoji: formats
+      let emojiName = req.body.emoji;
+      
+      // If it's in :emoji: format, remove the colons
+      if (emojiName.startsWith(':') && emojiName.endsWith(':')) {
+        emojiName = emojiName.slice(1, -1);
+      }
+      
+      // For Unicode emojis, try to find their Slack name
       const emojiEntry = Object.entries(emojis).find(([name, value]) => {
-        console.log(`Comparing emoji: ${name} = ${value} with ${req.body.emoji}`); // Debug log
-        return value === req.body.emoji;
+        return value === emojiName || name === emojiName;
       });
       
-      let emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
+      if (emojiEntry) {
+        emojiName = emojiEntry[0];
+      }
       
-      console.log('Selected emoji name:', emojiName); // Debug log
+      console.log('Processed emoji name:', emojiName); // Debug log
 
       try {
         let result;
@@ -92,6 +101,7 @@ export default async function handler(req, res) {
                 name: emojiName
               });
             } else {
+              console.error('Detailed error:', error);
               throw error; // Re-throw other errors
             }
           }
@@ -116,7 +126,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ 
           success: true,
           action: req.body.type === 'reaction' ? 'added' : 'removed',
-          details: result 
+          details: result,
+          emojiName: emojiName // Add this for debugging
         });
       } catch (error) {
         console.error('Slack API Error:', error);
@@ -124,7 +135,8 @@ export default async function handler(req, res) {
         // Return more detailed error information
         return res.status(500).json({ 
           error: `An API error occurred: ${error.data?.error || error.message}`,
-          details: error.data
+          details: error.data,
+          emojiName: emojiName // Add this for debugging
         });
       }
     }
