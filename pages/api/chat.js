@@ -27,6 +27,8 @@ export default async function handler(req, res) {
     if (req.body.type === 'reaction') {
       // Log the incoming request
       console.log('Incoming reaction request:', req.body);
+      console.log('Channel ID:', process.env.SLACK_CHANNEL_ID);
+      console.log('Thread TS:', req.body.thread_ts);
 
       // Convert emoji to Slack format
       let emojiName = 'thumbsup'; // Default to thumbsup
@@ -38,13 +40,24 @@ export default async function handler(req, res) {
 
       console.log('Using emoji name:', emojiName);
 
+      // Validate required fields
+      if (!process.env.SLACK_CHANNEL_ID) {
+        return res.status(500).json({ error: 'Missing SLACK_CHANNEL_ID' });
+      }
+      if (!req.body.thread_ts) {
+        return res.status(400).json({ error: 'Missing thread_ts' });
+      }
+
       try {
-        const result = await client.reactions.add({
+        const params = {
           channel: process.env.SLACK_CHANNEL_ID,
           timestamp: req.body.thread_ts,
           name: emojiName
-        });
+        };
         
+        console.log('Sending to Slack API:', params);
+        
+        const result = await client.reactions.add(params);
         console.log('Slack API Response:', result);
 
         // Trigger Pusher event for reaction
@@ -56,10 +69,14 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ success: true });
       } catch (slackError) {
-        console.error('Slack API Error:', slackError);
+        console.error('Slack API Error:', {
+          message: slackError.message,
+          data: slackError.data,
+          stack: slackError.stack
+        });
         return res.status(500).json({ 
           error: slackError.message,
-          details: slackError.data // Include more error details
+          details: slackError.data
         });
       }
     }
