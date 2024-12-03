@@ -61,7 +61,6 @@ export default async function handler(req, res) {
 
       // Get emoji name from Slack
       const emojis = await getSlackEmojis();
-      // Find the Slack emoji name by matching the Unicode emoji
       const emojiName = Object.entries(emojis).find(([_, value]) => value === req.body.emoji)?.[0] || 'thumbsup';
 
       try {
