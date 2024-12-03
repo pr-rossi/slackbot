@@ -13,6 +13,15 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
+// Add the same mapping at the top of the file
+const UNICODE_TO_SLACK_MAP = {
+  '👍': 'thumbsup',
+  '👎': 'thumbsdown',
+  '✅': 'white_check_mark',
+  '❤️': 'heart',
+  // Add more as needed
+};
+
 // Add this function to fetch emojis from Slack
 async function getSlackEmojis() {
   if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
@@ -92,7 +101,14 @@ export default async function handler(req, res) {
     console.log('Processing reaction event:', event);
     const emojis = await getSlackEmojis();
     
-    const emojiName = event.reaction;
+    let emojiName = event.reaction;
+    
+    // Convert Unicode emoji to Slack name if it exists in our mapping
+    if (UNICODE_TO_SLACK_MAP[emojiName]) {
+      emojiName = UNICODE_TO_SLACK_MAP[emojiName];
+    }
+    
+    // Get the emoji representation (either custom URL or standard format)
     const emoji = emojis[emojiName] || `:${emojiName}:`;
     
     try {
