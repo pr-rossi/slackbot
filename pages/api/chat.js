@@ -24,11 +24,8 @@ export default async function handler(req, res) {
   
   try {
     // Handle reactions
-    if (req.body.type === 'reaction') {
-      // Log the incoming request
-      console.log('Incoming reaction request:', req.body);
-      console.log('Channel ID:', process.env.SLACK_CHANNEL_ID);
-      console.log('Thread TS:', req.body.thread_ts);
+    if (req.body.type === 'reaction' || req.body.type === 'remove_reaction') {
+      console.log('Handling reaction:', req.body);
 
       // Convert emoji to Slack format
       let emojiName = 'thumbsup'; // Default to thumbsup
@@ -38,65 +35,75 @@ export default async function handler(req, res) {
         emojiName = 'heart';
       } // Add more emoji mappings as needed
 
-      console.log('Using emoji name:', emojiName);
-
-      // Validate required fields
-      if (!process.env.SLACK_CHANNEL_ID) {
-        return res.status(500).json({ error: 'Missing SLACK_CHANNEL_ID' });
-      }
-      if (!req.body.thread_ts) {
-        return res.status(400).json({ error: 'Missing thread_ts' });
-      }
-
       try {
-        const params = {
-          channel: process.env.SLACK_CHANNEL_ID,
-          timestamp: req.body.thread_ts,
-          name: emojiName
-        };
-        
-        console.log('Sending to Slack API:', params);
-        
-        const result = await client.reactions.add(params);
-        console.log('Slack API Response:', result);
+        let result;
+        if (req.body.type === 'reaction') {
+          try {
+            result = await client.reactions.add({
+              channel: process.env.SLACK_CHANNEL_ID,
+              timestamp: req.body.thread_ts,
+              name: emojiName
+            });
+          } catch (error) {
+            // If already reacted, try to remove the reaction instead
+            if (error.data?.error === 'already_reacted') {
+              result = await client.reactions.remove({
+                channel: process.env.SLACK_CHANNEL_ID,
+                timestamp: req.body.thread_ts,
+                name: emojiName
+              });
+              
+              // Trigger Pusher event for reaction removal
+              await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
+                emoji: req.body.emoji,
+                thread_ts: req.body.thread_ts
+              });
+              
+              return res.status(200).json({ 
+                success: true, 
+                action: 'removed',
+                details: result 
+              });
+            } else {
+              throw error; // Re-throw if it's a different error
+            }
+          }
+        } else {
+          // Handle explicit removal request
+          result = await client.reactions.remove({
+            channel: process.env.SLACK_CHANNEL_ID,
+            timestamp: req.body.thread_ts,
+            name: emojiName
+          });
+        }
 
-        // Trigger Pusher event for reaction
-        await pusher.trigger('pushrefresh-chat', 'reaction', {
-          emoji: req.body.emoji,
-          count: 1,
-          thread_ts: req.body.thread_ts
+        // If we got here, the reaction was added successfully
+        if (req.body.type === 'reaction') {
+          await pusher.trigger('pushrefresh-chat', 'reaction', {
+            emoji: req.body.emoji,
+            count: 1,
+            thread_ts: req.body.thread_ts
+          });
+        }
+
+        return res.status(200).json({ 
+          success: true,
+          action: req.body.type === 'reaction' ? 'added' : 'removed',
+          details: result 
         });
-
-        return res.status(200).json({ success: true });
       } catch (slackError) {
         console.error('Slack API Error:', {
           message: slackError.message,
           data: slackError.data,
           stack: slackError.stack
         });
+        
+        // Return more detailed error information
         return res.status(500).json({ 
-          error: slackError.message,
+          error: `An API error occurred: ${slackError.data?.error || slackError.message}`,
           details: slackError.data
         });
       }
-    }
-
-    // Handle reaction removal
-    if (req.body.type === 'remove_reaction') {
-      const result = await client.reactions.remove({
-        channel: process.env.SLACK_CHANNEL_ID,
-        timestamp: req.body.thread_ts,
-        name: req.body.emoji.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
-      });
-
-      // Trigger Pusher event for reaction removal
-      await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
-        emoji: req.body.emoji,
-        thread_ts: req.body.thread_ts,
-        messageIndex: req.body.thread_ts
-      });
-
-      return res.status(200).json({ success: true });
     }
 
     // Handle regular messages
