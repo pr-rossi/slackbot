@@ -25,21 +25,38 @@ export default async function handler(req, res) {
   try {
     // Handle reactions
     if (req.body.type === 'reaction') {
-      const result = await client.reactions.add({
+      console.log('Handling reaction:', {
         channel: process.env.SLACK_CHANNEL_ID,
         timestamp: req.body.thread_ts,
-        name: req.body.emoji.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
+        name: req.body.emoji
       });
 
-      // Trigger Pusher event for reaction
-      await pusher.trigger('pushrefresh-chat', 'reaction', {
-        emoji: req.body.emoji,
-        count: 1,
-        thread_ts: req.body.thread_ts,
-        messageIndex: req.body.thread_ts
-      });
+      // Remove any emoji characters and just keep the emoji name
+      const emojiName = req.body.emoji
+        .replace(/[^\w]/g, '')  // Remove non-word characters
+        .replace('', 'thumbsup')  // Convert emoji to Slack name
+        .toLowerCase();  // Ensure lowercase
 
-      return res.status(200).json({ success: true });
+      try {
+        const result = await client.reactions.add({
+          channel: process.env.SLACK_CHANNEL_ID,
+          timestamp: req.body.thread_ts,
+          name: emojiName
+        });
+        console.log('Reaction result:', result);
+
+        // Trigger Pusher event for reaction
+        await pusher.trigger('pushrefresh-chat', 'reaction', {
+          emoji: req.body.emoji,
+          count: 1,
+          thread_ts: req.body.thread_ts
+        });
+
+        return res.status(200).json({ success: true });
+      } catch (slackError) {
+        console.error('Slack API Error:', slackError);
+        return res.status(500).json({ error: slackError.message });
+      }
     }
 
     // Handle reaction removal
@@ -73,7 +90,7 @@ export default async function handler(req, res) {
       ts: result.ts // Add this to ensure we have the message timestamp
     });
   } catch (error) {
-    console.error('Slack API Error:', error);
+    console.error('General Error:', error);
     res.status(500).json({ error: error.message });
   }
 }
