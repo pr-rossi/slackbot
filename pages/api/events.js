@@ -1,5 +1,4 @@
 import Pusher from 'pusher';
-import emoji from 'node-emoji';
 
 const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID,
@@ -75,7 +74,7 @@ export default async function handler(req, res) {
           ? `:${emojis[emojiName].slice(6)}:` // Keep the original format for aliases
           : emojis[emojiName]; // Return URL for custom emoji
       }
-      return emoji.get(emojiName) || match;
+      return match; // Keep original text if emoji not found
     });
 
     await pusher.trigger('pushrefresh-chat', 'message', {
