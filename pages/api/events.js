@@ -9,9 +9,7 @@ const pusher = new Pusher({
 
 const SLACK_TO_UNICODE_MAP = {
     'thumbsup': '👍',
-    '+1': '👍',
     'thumbsdown': '👎',
-    '-1': '👎',
     'white_check_mark': '✅',
     'heart': '❤️',
     'tada': '🎉',
