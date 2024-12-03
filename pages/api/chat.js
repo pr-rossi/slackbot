@@ -12,12 +12,28 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
-const UNICODE_TO_SLACK_MAP = {
+const SLACK_TO_UNICODE_MAP = {
+  'thumbsup': '👍',
+  '+1': '👍',
+  'thumbsdown': '👎',
+  '-1': '👎',
+  'white_check_mark': '✅',
+  'white_check_ma': '✅',  // Add this variant
+  'white_check_mark_1': '✅',  // Add this variant
+  'heart': '❤️',
+  // Add reverse mappings
   '👍': 'thumbsup',
   '👎': 'thumbsdown',
   '✅': 'white_check_mark',
   '❤️': 'heart',
-  // Add more as needed
+};
+
+const normalizeEmoji = (emoji) => {
+  // Remove any numbers and underscores from the end of the emoji name
+  const cleanEmoji = emoji.replace(/[0-9_]+$/, '').replace(/:/g, '');
+  return SLACK_TO_UNICODE_MAP[cleanEmoji] || 
+         SLACK_TO_UNICODE_MAP[emoji] || 
+         emoji;
 };
 
 async function getSlackEmojis() {
@@ -66,71 +82,43 @@ export default async function handler(req, res) {
     // Handle reactions
     if (req.body.type === 'reaction' || req.body.type === 'remove_reaction') {
       console.log('Handling reaction:', req.body);
-
-      // Get emoji name from Slack
-      const emojis = await getSlackEmojis();
-      console.log('Available Slack emojis:', emojis); // Debug log
-
-      // Clean up the emoji input - handle both Unicode and :emoji: formats
+      
+      // Clean up the emoji input
       let emojiName = req.body.emoji;
+      const normalizedEmoji = normalizeEmoji(emojiName);
       
-      // If it's in :emoji: format, remove the colons
-      if (emojiName.startsWith(':') && emojiName.endsWith(':')) {
-        emojiName = emojiName.slice(1, -1);
-      }
-      
-      // Convert Unicode emoji to Slack name if it exists in our mapping
-      if (UNICODE_TO_SLACK_MAP[emojiName]) {
-        emojiName = UNICODE_TO_SLACK_MAP[emojiName];
-      }
-      
-      // For custom emojis, try to find their Slack name
-      const emojiEntry = Object.entries(emojis).find(([name, value]) => {
-        return value === emojiName || name === emojiName;
-      });
-      
-      if (emojiEntry) {
-        emojiName = emojiEntry[0];
-      }
-      
-      console.log('Processed emoji name:', emojiName); // Debug log
-
       try {
         let result;
         if (req.body.type === 'reaction') {
-          console.log('Adding reaction with name:', emojiName); // Debug log
+          console.log('Adding reaction with name:', normalizedEmoji);
           try {
             result = await client.reactions.add({
               channel: process.env.SLACK_CHANNEL_ID,
               timestamp: req.body.thread_ts,
-              name: emojiName
+              name: normalizedEmoji
             });
           } catch (error) {
             if (error.data?.error === 'already_reacted') {
-              // If already reacted, remove the reaction instead
               result = await client.reactions.remove({
                 channel: process.env.SLACK_CHANNEL_ID,
                 timestamp: req.body.thread_ts,
-                name: emojiName
+                name: normalizedEmoji
               });
             } else {
-              console.error('Detailed error:', error);
-              throw error; // Re-throw other errors
+              throw error;
             }
           }
         } else {
-          // Handle explicit removal request
           result = await client.reactions.remove({
             channel: process.env.SLACK_CHANNEL_ID,
             timestamp: req.body.thread_ts,
-            name: emojiName
+            name: normalizedEmoji
           });
         }
 
-        // If we got here, the reaction was handled successfully
         if (req.body.type === 'reaction') {
           await pusher.trigger('pushrefresh-chat', 'reaction', {
-            emoji: req.body.emoji,
+            emoji: normalizedEmoji,
             count: 1,
             thread_ts: req.body.thread_ts
           });
@@ -140,16 +128,14 @@ export default async function handler(req, res) {
           success: true,
           action: req.body.type === 'reaction' ? 'added' : 'removed',
           details: result,
-          emojiName: emojiName // Add this for debugging
+          emojiName: normalizedEmoji
         });
       } catch (error) {
         console.error('Slack API Error:', error);
-        
-        // Return more detailed error information
         return res.status(500).json({ 
           error: `An API error occurred: ${error.data?.error || error.message}`,
           details: error.data,
-          emojiName: emojiName // Add this for debugging
+          emojiName: normalizedEmoji
         });
       }
     }

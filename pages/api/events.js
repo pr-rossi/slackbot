@@ -13,13 +13,30 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
-// Add the same mapping at the top of the file
-const UNICODE_TO_SLACK_MAP = {
-  '👍': 'thumbsup',
-  '👎': 'thumbsdown',
-  '✅': 'white_check_mark',
-  '❤️': 'heart',
-  // Add more as needed
+// Update the emoji mapping at the top
+const SLACK_TO_UNICODE_MAP = {
+    'thumbsup': '👍',
+    '+1': '👍',
+    'thumbsdown': '👎',
+    '-1': '👎',
+    'white_check_mark': '✅',
+    'white_check_ma': '✅',  // Add this variant
+    'white_check_mark_1': '✅',  // Add this variant
+    'heart': '❤️',
+    // Add reverse mappings
+    '👍': 'thumbsup',
+    '👎': 'thumbsdown',
+    '✅': 'white_check_mark',
+    '❤️': 'heart',
+};
+
+// Add the normalizeEmoji function
+const normalizeEmoji = (emoji) => {
+    // Remove any numbers and underscores from the end of the emoji name
+    const cleanEmoji = emoji.replace(/[0-9_]+$/, '').replace(/:/g, '');
+    return SLACK_TO_UNICODE_MAP[cleanEmoji] || 
+           SLACK_TO_UNICODE_MAP[emoji] || 
+           emoji;
 };
 
 // Add this function to fetch emojis from Slack
@@ -102,23 +119,16 @@ export default async function handler(req, res) {
     const emojis = await getSlackEmojis();
     
     let emojiName = event.reaction;
-    
-    // Convert Unicode emoji to Slack name if it exists in our mapping
-    if (UNICODE_TO_SLACK_MAP[emojiName]) {
-      emojiName = UNICODE_TO_SLACK_MAP[emojiName];
-    }
-    
-    // Get the emoji representation (either custom URL or standard format)
-    const emoji = emojis[emojiName] || `:${emojiName}:`;
+    const normalizedEmoji = normalizeEmoji(emojiName);
     
     try {
-      await pusher.trigger('pushrefresh-chat', event.type === 'reaction_added' ? 'reaction' : 'reaction_removed', {
-        emoji: emoji,
-        thread_ts: event.item.ts
-      });
-      console.log('Successfully pushed reaction event');
+        await pusher.trigger('pushrefresh-chat', event.type === 'reaction_added' ? 'reaction' : 'reaction_removed', {
+            emoji: normalizedEmoji,
+            thread_ts: event.item.ts
+        });
+        console.log('Successfully pushed reaction event');
     } catch (error) {
-      console.error('Error pushing reaction:', error);
+        console.error('Error pushing reaction:', error);
     }
   }
 
