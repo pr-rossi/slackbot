@@ -13,31 +13,36 @@ const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
 const SLACK_TO_UNICODE_MAP = {
-  '👍': 'thumbsup',
-  '👎': 'thumbsdown',
-  '✅': 'white_check_mark',
-  '❤️': 'heart',
   'thumbsup': '👍',
   '+1': '👍',
   'thumbsdown': '👎',
   '-1': '👎',
   'white_check_mark': '✅',
-  'white_check_ma': 'white_check_mark',
-  'white_check_mark_1': 'white_check_mark',
-  'heart': '❤️'
+  'white_check_ma': '✅',
+  'white_check_mark_1': '✅',
+  'heart': '❤️',
+  
+  '👍': 'thumbsup',
+  '👎': 'thumbsdown',
+  '✅': 'white_check_mark',
+  '❤️': 'heart'
 };
 
 const normalizeEmoji = (emoji, forSlackApi = false) => {
-  // Remove any numbers and underscores from the end of the emoji name
   const cleanEmoji = emoji.replace(/[0-9_]+$/, '').replace(/:/g, '');
   
   if (forSlackApi) {
-    // For Slack API, we need the name, not the Unicode
-    return SLACK_TO_UNICODE_MAP[cleanEmoji] || 
-           (SLACK_TO_UNICODE_MAP[emoji] || cleanEmoji);
+    if (SLACK_TO_UNICODE_MAP[cleanEmoji]) {
+      return SLACK_TO_UNICODE_MAP[cleanEmoji];
+    }
+    for (const [key, value] of Object.entries(SLACK_TO_UNICODE_MAP)) {
+      if (value === SLACK_TO_UNICODE_MAP[cleanEmoji]) {
+        return key;
+      }
+    }
+    return cleanEmoji;
   }
   
-  // For display/storage, we want the Unicode
   return SLACK_TO_UNICODE_MAP[cleanEmoji] || 
          SLACK_TO_UNICODE_MAP[emoji] || 
          emoji;
@@ -86,14 +91,15 @@ export default async function handler(req, res) {
   const client = new WebClient(process.env.SLACK_BOT_TOKEN);
   
   try {
-    // Handle reactions
     if (req.body.type === 'reaction' || req.body.type === 'remove_reaction') {
       console.log('Handling reaction:', req.body);
       
-      // Clean up the emoji input
-      let emojiName = req.body.emoji;
+      const emojiName = req.body.emoji;
       const normalizedEmojiForDisplay = normalizeEmoji(emojiName);
       const normalizedEmojiForApi = normalizeEmoji(emojiName, true);
+      
+      console.log('Normalized emoji for API:', normalizedEmojiForApi);
+      console.log('Normalized emoji for display:', normalizedEmojiForDisplay);
       
       try {
         let result;
@@ -113,6 +119,11 @@ export default async function handler(req, res) {
                 name: normalizedEmojiForApi
               });
             } else {
+              console.error('Slack API Error Details:', {
+                error: error.data?.error,
+                emojiName: normalizedEmojiForApi,
+                originalEmoji: emojiName
+              });
               throw error;
             }
           }
@@ -136,19 +147,21 @@ export default async function handler(req, res) {
           success: true,
           action: req.body.type === 'reaction' ? 'added' : 'removed',
           details: result,
-          emojiName: normalizedEmojiForDisplay
+          emojiName: normalizedEmojiForDisplay,
+          apiName: normalizedEmojiForApi
         });
       } catch (error) {
         console.error('Slack API Error:', error);
         return res.status(500).json({ 
           error: `An API error occurred: ${error.data?.error || error.message}`,
           details: error.data,
-          emojiName: normalizedEmojiForDisplay
+          emojiName: normalizedEmojiForDisplay,
+          apiName: normalizedEmojiForApi,
+          originalEmoji: emojiName
         });
       }
     }
 
-    // Handle regular messages
     const result = await client.chat.postMessage({
       channel: process.env.SLACK_CHANNEL_ID,
       text: req.body.message,
@@ -158,7 +171,7 @@ export default async function handler(req, res) {
     res.status(200).json({ 
       success: true,
       thread_ts: result.ts,
-      ts: result.ts // Add this to ensure we have the message timestamp
+      ts: result.ts
     });
   } catch (error) {
     console.error('General Error:', error);
