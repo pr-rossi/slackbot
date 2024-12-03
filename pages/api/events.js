@@ -8,24 +8,30 @@ const pusher = new Pusher({
 });
 
 const SLACK_TO_UNICODE_MAP = {
-    'thumbsup': '👍',
-    'thumbsdown': '👎',
-    'white_check_mark': '✅',
-    'heart': '❤️',
-    'tada': '🎉',
-    'rocket': '🚀',
-    
-    '👍': 'thumbsup',
-    '👎': 'thumbsdown',
-    '✅': 'white_check_mark',
-    '❤️': 'heart',
-    '🎉': 'tada',
-    '🚀': 'rocket'
+  // Define both directions for each emoji
+  'thumbsup': '👍',
+  '👍': 'thumbsup',
+  
+  'heart': '❤️',
+  '❤️': 'heart',
+  
+  'tada': '🎉',
+  '🎉': 'tada',
+  
+  'rocket': '🚀',
+  '🚀': 'rocket',
 };
 
-const normalizeEmoji = (emoji) => {
-    const cleanEmoji = emoji.replace(/[0-9_]+$/, '').replace(/:/g, '');
-    return SLACK_TO_UNICODE_MAP[cleanEmoji] || emoji;
+const normalizeEmoji = (emoji, forSlackApi = false) => {
+  const cleanEmoji = emoji.replace(/[0-9_]+$/, '').replace(/:/g, '');
+  
+  if (forSlackApi) {
+      // When sending to Slack API, convert Unicode to Slack name
+      return SLACK_TO_UNICODE_MAP[cleanEmoji] || cleanEmoji;
+  }
+  
+  // When displaying, convert Slack name to Unicode
+  return SLACK_TO_UNICODE_MAP[cleanEmoji] || emoji;
 };
 
 export default async function handler(req, res) {
