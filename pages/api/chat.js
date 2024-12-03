@@ -82,11 +82,24 @@ export default async function handler(req, res) {
         let result;
         if (req.body.type === 'reaction') {
           console.log('Adding reaction with name:', emojiName); // Debug log
-          result = await client.reactions.add({
-            channel: process.env.SLACK_CHANNEL_ID,
-            timestamp: req.body.thread_ts,
-            name: emojiName
-          });
+          try {
+            result = await client.reactions.add({
+              channel: process.env.SLACK_CHANNEL_ID,
+              timestamp: req.body.thread_ts,
+              name: emojiName
+            });
+          } catch (error) {
+            if (error.data?.error === 'already_reacted') {
+              // If already reacted, remove the reaction instead
+              result = await client.reactions.remove({
+                channel: process.env.SLACK_CHANNEL_ID,
+                timestamp: req.body.thread_ts,
+                name: emojiName
+              });
+            } else {
+              throw error; // Re-throw other errors
+            }
+          }
         } else {
           // Handle explicit removal request
           result = await client.reactions.remove({
