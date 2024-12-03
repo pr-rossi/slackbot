@@ -11,7 +11,6 @@ const pusher = new Pusher({
 const SLACK_TO_UNICODE_MAP = {
   // Define both directions for each emoji
   'thumbsup': '👍',
-  '+1': '👍',
   '👍': 'thumbsup',
   
   'heart': '❤️',
