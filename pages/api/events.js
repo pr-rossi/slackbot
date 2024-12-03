@@ -13,6 +13,15 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
+// Add this mapping at the top of your file
+const EMOJI_ALIASES = {
+  '👍': '+1',
+  '+1': '+1',
+  '👎': '-1',
+  '-1': '-1',
+  // Add more aliases as needed
+};
+
 // Add this function to fetch emojis from Slack
 async function getSlackEmojis() {
   if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
@@ -88,51 +97,24 @@ export default async function handler(req, res) {
   }
   
   // Handle reactions being added
-  if (event?.type === 'reaction_added') {
-    console.log('Processing reaction_added:', {
-      channel: event.item.channel,
-      expected_channel: process.env.SLACK_CHANNEL_ID,
-      reaction: event.reaction,
-      item: event.item
-    });
-
+  if (event?.type === 'reaction_added' || event?.type === 'reaction_removed') {
+    console.log('Processing reaction event:', event);
     const emojis = await getSlackEmojis();
-    const emojiName = event.reaction;
+    
+    let emojiName = event.reaction;
+    // Normalize emoji aliases
+    emojiName = EMOJI_ALIASES[emojiName] || emojiName;
+    
     const emoji = emojis[emojiName] || `:${emojiName}:`;
     
     try {
-      await pusher.trigger('pushrefresh-chat', 'reaction', {
+      await pusher.trigger('pushrefresh-chat', event.type === 'reaction_added' ? 'reaction' : 'reaction_removed', {
         emoji: emoji,
-        count: 1,
         thread_ts: event.item.ts
       });
       console.log('Successfully pushed reaction event');
     } catch (error) {
       console.error('Error pushing reaction:', error);
-    }
-  }
-
-  // Handle reactions being removed
-  if (event?.type === 'reaction_removed') {
-    console.log('Processing reaction_removed:', {
-      channel: event.item.channel,
-      expected_channel: process.env.SLACK_CHANNEL_ID,
-      reaction: event.reaction,
-      item: event.item
-    });
-
-    const emojis = await getSlackEmojis();
-    const emojiName = event.reaction;
-    const emoji = emojis[emojiName] || `:${emojiName}:`;
-    
-    try {
-      await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
-        emoji: emoji,
-        thread_ts: event.item.ts
-      });
-      console.log('Successfully pushed reaction_removed event');
-    } catch (error) {
-      console.error('Error pushing reaction removal:', error);
     }
   }
 

@@ -12,6 +12,14 @@ let emojiCache = null;
 const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 let lastEmojiFetch = 0;
 
+const EMOJI_ALIASES = {
+  '👍': '+1',
+  '+1': '+1',
+  '👎': '-1',
+  '-1': '-1',
+  // Add more aliases as needed
+};
+
 async function getSlackEmojis() {
   if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
     return emojiCache;
@@ -70,6 +78,10 @@ export default async function handler(req, res) {
       });
       
       let emojiName = emojiEntry?.[0] || req.body.emoji.replace(/:/g, '');
+      
+      // Normalize emoji aliases
+      emojiName = EMOJI_ALIASES[emojiName] || emojiName;
+      
       console.log('Selected emoji name:', emojiName); // Debug log
 
       // Ensure emoji name is valid
