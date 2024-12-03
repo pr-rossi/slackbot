@@ -36,18 +36,28 @@ const emojiMap = {
 };
 
 export default async function handler(req, res) {
-  console.log('Received Slack event webhook:', {
-    type: req.body.type,
-    event: req.body.event,
-    body: req.body
-  });
+  // Add immediate debug logging
+  console.log('=== START EVENT HANDLER ===');
+  console.log('Request method:', req.method);
+  console.log('Request headers:', req.headers);
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('=== END EVENT HANDLER ===');
 
   if (req.body.type === 'url_verification') {
+    console.log('Handling URL verification');
     return res.json({ challenge: req.body.challenge });
   }
 
   const event = req.body.event;
   
+  // Log all incoming events
+  console.log('Processing event:', {
+    type: event?.type,
+    subtype: event?.subtype,
+    channel: event?.item?.channel,
+    expected_channel: process.env.SLACK_CHANNEL_ID
+  });
+
   // Handle regular messages
   if (event?.type === 'message' && !event.bot_id && event.channel === process.env.SLACK_CHANNEL_ID) {
     const text = event.text.replace(/:([\w-]+):/g, (match, emoji) => {
