@@ -7,33 +7,39 @@ const pusher = new Pusher({
   cluster: process.env.PUSHER_CLUSTER,
 });
 
-// Basic emoji mapping - add more as needed
-const emojiMap = {
-    'smile': '😊',
-    'rolling_on_the_floor_laughing': '🤣',
-    'laughing': '😄',
-    'wink': '😉',
-    'heart': '❤️',
-    'thumbsup': '👍',
-    'wave': '👋',
-    'rocket': '🚀',
-    'fire': '🔥',
-    'tada': '🎉',
-    'raised_hands': '🙌',
-    'pray': '🙏',
-    '+1': '👍',
-    '-1': '👎',
-    'ok_hand': '👌',
-    'muscle': '💪',
-    'clap': '👏',
-    'star': '⭐',
-    'sparkles': '✨',
-    'sunny': '☀️',
-    'thinking_face': '🤔',
-    'check': '✅',
-    'warning': '⚠️',
-    'x': '❌',
-};
+// Add this at the top level of the file
+let emojiCache = null;
+const EMOJI_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+let lastEmojiFetch = 0;
+
+// Add this function to fetch emojis from Slack
+async function getSlackEmojis() {
+  if (emojiCache && (Date.now() - lastEmojiFetch) < EMOJI_CACHE_DURATION) {
+    return emojiCache;
+  }
+
+  try {
+    const response = await fetch('https://slack.com/api/emoji.list', {
+      headers: {
+        'Authorization': `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    if (!data.ok) {
+      console.error('Failed to fetch Slack emojis:', data.error);
+      return emojiCache || {};
+    }
+
+    emojiCache = data.emoji;
+    lastEmojiFetch = Date.now();
+    return emojiCache;
+  } catch (error) {
+    console.error('Error fetching Slack emojis:', error);
+    return emojiCache || {};
+  }
+}
 
 export default async function handler(req, res) {
   // Add immediate debug logging
@@ -60,8 +66,15 @@ export default async function handler(req, res) {
 
   // Handle regular messages
   if (event?.type === 'message' && !event.bot_id && event.channel === process.env.SLACK_CHANNEL_ID) {
-    const text = event.text.replace(/:([\w-]+):/g, (match, emoji) => {
-        return emojiMap[emoji] || match;
+    const emojis = await getSlackEmojis();
+    const text = event.text.replace(/:([\w-]+):/g, (match, emojiName) => {
+      if (emojis[emojiName]) {
+        // Handle both URLs and aliases
+        return emojis[emojiName].startsWith('alias:') 
+          ? `:${emojis[emojiName].slice(6)}:` // Keep the original format for aliases
+          : emojis[emojiName]; // Return URL for custom emoji
+      }
+      return match; // Keep original text if emoji not found
     });
 
     await pusher.trigger('pushrefresh-chat', 'message', {
@@ -82,7 +95,9 @@ export default async function handler(req, res) {
       item: event.item
     });
 
-    const emoji = emojiMap[event.reaction] || event.reaction;
+    const emojis = await getSlackEmojis();
+    const emojiName = event.reaction;
+    const emoji = emojis[emojiName] || `:${emojiName}:`;
     
     try {
       await pusher.trigger('pushrefresh-chat', 'reaction', {
@@ -105,7 +120,9 @@ export default async function handler(req, res) {
       item: event.item
     });
 
-    const emoji = emojiMap[event.reaction] || event.reaction;
+    const emojis = await getSlackEmojis();
+    const emojiName = event.reaction;
+    const emoji = emojis[emojiName] || `:${emojiName}:`;
     
     try {
       await pusher.trigger('pushrefresh-chat', 'reaction_removed', {
