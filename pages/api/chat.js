@@ -23,6 +23,17 @@ export default async function handler(req, res) {
   const client = new WebClient(process.env.SLACK_BOT_TOKEN);
   
   try {
+    // Handle reactions
+    if (req.body.type === 'reaction') {
+      await client.reactions.add({
+        channel: process.env.SLACK_CHANNEL_ID,
+        timestamp: req.body.thread_ts,
+        name: req.body.reaction.replace(/[:\s]/g, '') // Remove colons and spaces from emoji
+      });
+      return res.status(200).json({ success: true });
+    }
+
+    // Handle regular messages
     const result = await client.chat.postMessage({
       channel: process.env.SLACK_CHANNEL_ID,
       text: req.body.message,
