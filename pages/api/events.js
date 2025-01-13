@@ -43,7 +43,8 @@ export default async function handler(req, res) {
   
   // Handle regular messages
   if (event?.type === 'message' && !event.bot_id && event.channel === process.env.SLACK_CHANNEL_ID) {
-    await pusher.trigger('pushrefresh-chat', 'message', {
+    const channelName = `pushrefresh-chat-${event.thread_ts || event.ts}`;
+    await pusher.trigger(channelName, 'message', {
       text: event.text,
       user: 'Rossi - Push Refresh',
       isUser: false,
@@ -56,8 +57,9 @@ export default async function handler(req, res) {
   if (event?.type === 'reaction_added' || event?.type === 'reaction_removed') {
     const emojiName = event.reaction;
     const normalizedEmoji = normalizeEmoji(emojiName);
+    const channelName = `pushrefresh-chat-${event.item.ts}`;
     
-    await pusher.trigger('pushrefresh-chat', 
+    await pusher.trigger(channelName,
       event.type === 'reaction_added' ? 'reaction_added' : 'reaction_removed',
       {
         emoji: normalizedEmoji,

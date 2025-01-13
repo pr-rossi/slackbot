@@ -117,10 +117,22 @@ export default async function handler(req, res) {
       thread_ts: req.body.thread_ts || undefined
     });
 
+    const channelName = `pushrefresh-chat-${result.ts}`;
+    if (!req.body.thread_ts) {
+      await pusher.trigger(channelName, 'message', {
+        text: req.body.message,
+        user: 'You',
+        isUser: true,
+        thread_ts: result.ts,
+        ts: result.ts
+      });
+    }
+
     res.status(200).json({ 
       success: true,
       thread_ts: result.ts,
-      ts: result.ts
+      ts: result.ts,
+      channelName: channelName
     });
   } catch (error) {
     console.error('Slack API Error:', error);
